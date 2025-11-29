@@ -72,7 +72,14 @@ async def draft_watcher(client: Client, update, users, chats):
             
         elif draft_text.startswith(".mimi"):
             logger.info(f"Command .mimi detected in {chat_id}")
-            await mimicry.handle_mimicry_command(client, chat_id, chat_contexts)
+            args = draft_text.split()[1:]
+            limit = 100
+            if args:
+                try:
+                    limit = int(args[0])
+                except ValueError:
+                    limit = 100
+            await mimicry.handle_mimicry_command(client, chat_id, chat_contexts, limit)
             
         elif draft_text.startswith(".e ") or draft_text.startswith(".explain "):
             logger.info(f"Command .e detected in {chat_id}")
