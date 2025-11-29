@@ -1,26 +1,24 @@
 import os
 import yaml
 from dotenv import load_dotenv
-
-# Загружаем переменные из .env
 load_dotenv()
 
 # --- ПЕРЕМЕННЫЕ ОКРУЖЕНИЯ ---
 API_ID = os.getenv("API_ID")
 API_HASH = os.getenv("API_HASH")
-GEMINI_KEY = os.getenv("GEMINI_API_KEY")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+MODEL_NAME = os.getenv("GEMINI_MODEL_NAME", "gemini-2.5-flash")
 SESSION_NAME = os.getenv("SESSION_NAME", "ghost_session")
 
 # --- ПУТИ К ФАЙЛАМ ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-DATA_DIR = "database"
+DATA_DIR = "data"
 SESSIONS_DIR = "sessions"
 
 DATA_DIR_PATH = os.path.join(BASE_DIR, DATA_DIR)
 SESSIONS_DIR_PATH = os.path.join(BASE_DIR, SESSIONS_DIR)
 
-MIMICRY_DB = os.path.join(DATA_DIR_PATH, "mimicry.db")
 CONTEXT_FILE = os.path.join(DATA_DIR_PATH, "chat_contexts.json")
 PROMPTS_FILE = os.path.join(BASE_DIR, "prompts.yaml")
 
@@ -36,6 +34,9 @@ def load_prompts():
             return {}
 
 PROMPTS = load_prompts()
+
+# --- Прочие настройки ---
+DRAFT_COOLDOWN = 2 # секунды между сохранениями черновиков
 
 # --- ИНИЦИАЛИЗАЦИЯ ---
 os.makedirs(DATA_DIR_PATH, exist_ok=True)

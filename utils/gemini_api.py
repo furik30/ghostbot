@@ -1,12 +1,12 @@
 import logging
 import google.generativeai as genai
 from google.generativeai.types import HarmCategory, HarmBlockThreshold
-from config import GEMINI_KEY
+from config import GEMINI_API_KEY, MODEL_NAME
 
 logger = logging.getLogger("GeminiAPI")
 
 try:
-    genai.configure(api_key=GEMINI_KEY)
+    genai.configure(api_key=GEMINI_API_KEY)
 except Exception as e:
     logger.error(f"Failed to configure Gemini: {e}")
 
@@ -18,7 +18,7 @@ safety_settings = {
 }
 
 model = genai.GenerativeModel(
-    model_name="gemini-2.5-flash",
+    model_name=MODEL_NAME,
     safety_settings=safety_settings
 )
 

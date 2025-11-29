@@ -3,7 +3,7 @@ from utils.gemini_api import generate_text
 from utils.common import save_draft
 from utils.logger import setup_logger
 from pyrogram import Client
-from config import PROMPTS
+from config import PROMPTS, DRAFT_COOLDOWN
 
 logger = setup_logger("PromptBuilder")
 
@@ -13,7 +13,7 @@ async def handle_prompt_command(client: Client, chat_id: int, raw_text: str):
     
     logger.info(f"Building prompt for: {user_request[:30]}...")
 
-    await asyncio.sleep(2)
+    await asyncio.sleep(DRAFT_COOLDOWN)
     await save_draft(client, chat_id, "✨ Инженeрю промпт...")
 
     prompt_config = PROMPTS.get('prompt_builder', {})
@@ -26,5 +26,5 @@ async def handle_prompt_command(client: Client, chat_id: int, raw_text: str):
 
     response = await generate_text(meta_prompt)
 
-    await asyncio.sleep(2)
+    await asyncio.sleep(DRAFT_COOLDOWN)
     await save_draft(client, chat_id, response)
