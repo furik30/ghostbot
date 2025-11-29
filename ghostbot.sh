@@ -12,14 +12,22 @@ fi
 
 cd "$GHOST_DIR" || exit 1
 
+# Функция для получения текущей ветки
+get_current_branch() {
+    git rev-parse --abbrev-ref HEAD
+}
+
 case "$1" in
     up)
+        echo -e "${GREEN}Starting...${NC}"
         docker compose up -d
         ;;
     down)
+        echo -e "${RED}Stopping...${NC}"
         docker compose down
         ;;
     restart)
+        echo -e "${YELLOW}Restarting...${NC}"
         docker compose restart
         ;;
     logs)
@@ -27,8 +35,19 @@ case "$1" in
         docker compose logs -f --tail="$LINES"
         ;;
     update)
-        git pull
+        # Можно указать ветку: ghostbot update dev
+        TARGET_BRANCH=${2:-$(get_current_branch)}
+        
+        echo -e "${YELLOW}Updating from branch: ${TARGET_BRANCH}...${NC}"
+        
+        git fetch origin
+        git checkout "$TARGET_BRANCH"
+        git pull origin "$TARGET_BRANCH"
+        
+        echo -e "${YELLOW}Rebuilding image...${NC}"
         docker compose build
+        
+        echo -e "${GREEN}Restarting...${NC}"
         docker compose up -d
         ;;
     status)
@@ -41,6 +60,7 @@ case "$1" in
         nano prompts.yaml
         ;;
     login)
+        echo -e "${YELLOW}Interactive Login Mode${NC}"
         docker compose down
         docker compose run --rm -it ghost_bot
         ;;
@@ -49,14 +69,14 @@ case "$1" in
         echo "Usage: ghostbot [command]"
         echo ""
         echo "Commands:"
-        echo "  up           Start the bot (background)"
-        echo "  down         Stop the bot"
-        echo "  restart      Restart the bot"
-        echo "  logs [n]     Show logs (tail n lines)"
-        echo "  status       Check container status"
-        echo "  update       Git pull + Rebuild + Restart"
-        echo "  login        Interactive mode for Telegram Auth"
-        echo "  edit-env     Edit .env file"
-        echo "  edit-prompts Edit prompts.yaml"
+        echo "  up              Start background daemon"
+        echo "  down            Stop bot"
+        echo "  restart         Restart bot"
+        echo "  logs [n]        Show logs (default 100 lines)"
+        echo "  update [branch] Update code (default: current branch)"
+        echo "  status          Container status"
+        echo "  login           Re-login to Telegram"
+        echo "  edit-env        Edit config"
+        echo "  edit-prompts    Edit prompts"
         ;;
 esac
