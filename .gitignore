@@ -58,7 +58,7 @@ Thumbs.db
 
 # Sessions and data
 sessions/
-database/
+data/
 
 # Logs
 *.log

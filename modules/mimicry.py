@@ -3,19 +3,19 @@ from utils.gemini_api import generate_text
 from utils.common import get_recent_history, save_draft
 from utils.logger import setup_logger
 from pyrogram import Client
-from config import PROMPTS
+from config import PROMPTS, DRAFT_COOLDOWN
 
 logger = setup_logger("MimicryMod")
 
-async def handle_mimicry_command(client: Client, chat_id: int, chat_contexts: dict):
+async def handle_mimicry_command(client: Client, chat_id: int, chat_contexts: dict, limit: int = 100):
     """
     Логика команды .mimi
     Читает историю + ТЕКУЩУЮ ЗАМЕТКУ -> Создает актуализированный контекст.
     """
-    await asyncio.sleep(2)
+    await asyncio.sleep(DRAFT_COOLDOWN)
     await save_draft(client, chat_id, "🕵️‍♂️ Составляю досье на собеседника...")
     
-    history = await get_recent_history(client, chat_id, limit=100)
+    history = await get_recent_history(client, chat_id, limit=limit)
     current_memo = chat_contexts.get(str(chat_id), "None")
     
     mimicry_config = PROMPTS.get('mimicry', {})
@@ -28,7 +28,7 @@ async def handle_mimicry_command(client: Client, chat_id: int, chat_contexts: di
         f"TASK: Update/Create the context note."
     )
 
-    await asyncio.sleep(2)
+    await asyncio.sleep(DRAFT_COOLDOWN)
     await save_draft(client, chat_id, "🧠 Формулирую контекст...")
     
     response = await generate_text(prompt)

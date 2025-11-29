@@ -3,7 +3,7 @@ from utils.gemini_api import generate_text
 from utils.common import get_multimodal_history, save_draft
 from utils.logger import setup_logger
 from pyrogram import Client, enums
-from config import PROMPTS
+from config import PROMPTS, DRAFT_COOLDOWN
 
 logger = setup_logger("ExplainMod")
 
@@ -15,7 +15,7 @@ async def handle_explain_command(client: Client, chat_id: int, args: list, conte
     logger.info(f"Explaining context for {chat_id} (limit: {msg_count})")
 
     # 1. Индикация
-    await asyncio.sleep(2)
+    await asyncio.sleep(DRAFT_COOLDOWN)
     await save_draft(client, chat_id, "🕵️‍♂️ Читаю мысли собеседника...")
     
     # 2. Сбор мультимодальной истории
@@ -34,7 +34,7 @@ async def handle_explain_command(client: Client, chat_id: int, args: list, conte
     final_contents.append(intro_text)
     final_contents.extend(history_parts)
 
-    await asyncio.sleep(2)
+    await asyncio.sleep(DRAFT_COOLDOWN)
     await save_draft(client, chat_id, "🧠 Генерирую психопортрет...")
     
     response = await generate_text(final_contents, system_instruction)
@@ -58,7 +58,7 @@ async def handle_explain_command(client: Client, chat_id: int, args: list, conte
         else:
             await client.send_message("me", full_text, parse_mode=enums.ParseMode.MARKDOWN)
         
-        await asyncio.sleep(2)
+        await asyncio.sleep(DRAFT_COOLDOWN)
         await save_draft(client, chat_id, "✅ Анализ отправлен в Избранное")
         await asyncio.sleep(3.0)
         await save_draft(client, chat_id, "")
