@@ -57,8 +57,8 @@ async def draft_watcher(client: Client, update, users, chats):
             logger.info(f"Command .p detected in {chat_id}")
             await prompt_builder.handle_prompt_command(client, chat_id, draft_text)
 
-        elif " .fix" in draft_text:
-            if draft_text.endswith(" .fix") or " .fix " in draft_text:
+        elif ".fix" in draft_text:
+            if draft_text.endswith(" .fix") or ".fix " in draft_text:
                 logger.info(f"Command .fix detected in {chat_id}")
                 await text_fixer.handle_fix_command(client, chat_id, draft_text)
 

@@ -3,14 +3,14 @@ from utils.gemini_api import generate_text
 from utils.common import get_multimodal_history, save_draft
 from utils.logger import setup_logger
 from pyrogram import Client
-from config import PROMPTS
+from config import PROMPTS, DRAFT_COOLDOWN
 
 logger = setup_logger("ReplyGen")
 
 async def handle_reply_command(client: Client, chat_id: int, args: list, context_note: str = ""):
     logger.info(f"Generating reply for {chat_id} with args: {args}")
     
-    await asyncio.sleep(2)
+    await asyncio.sleep(DRAFT_COOLDOWN)
     await save_draft(client, chat_id, "🧠 Читаю переписку...")
     
     msg_count = 5
@@ -47,11 +47,11 @@ async def handle_reply_command(client: Client, chat_id: int, args: list, context
     final_contents.append(intro_text)
     final_contents.extend(history_parts)
 
-    await asyncio.sleep(2)
+    await asyncio.sleep(DRAFT_COOLDOWN)
     await save_draft(client, chat_id, "🧠 Думаю...")
     
     response = await generate_text(final_contents, system_instruction)
     logger.info("Reply generated successfully")
 
-    await asyncio.sleep(2)
+    await asyncio.sleep(DRAFT_COOLDOWN)
     await save_draft(client, chat_id, response)
