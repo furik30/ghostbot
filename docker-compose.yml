@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  ghost_bot:
+    build: .
+    container_name: gemini_ghost_bot
+    restart: always
+    env_file:
+      - .env
+    volumes:
+      - ./sessions:/app/sessions
+      - ./data:/app/data
+      - ./logs:/app/logs
