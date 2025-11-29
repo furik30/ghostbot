@@ -1,0 +1,11 @@
+services:
+  ghost_bot:
+    build: .
+    container_name: ghostbot
+    restart: always
+    env_file:
+      - .env
+    volumes:
+      - ./sessions:/app/sessions
+      - ./data:/app/data
+      - ./logs:/app/logs
