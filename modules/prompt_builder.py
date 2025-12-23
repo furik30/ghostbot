@@ -23,8 +23,6 @@ async def handle_prompt_command(client: Client, chat_id: int, raw_text: str):
     # Подставляем имя
     system_instruction = raw_instruction.replace("{user_firstname}", user_firstname)
 
-    # Для PromptBuilder (где input - текст) можно оставить как есть,
-    # но лучше перевести на формат contents
     contents = [
         f"User Request: {user_request}"
     ]
