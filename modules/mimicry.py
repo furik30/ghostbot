@@ -1,6 +1,6 @@
 import asyncio
 from utils.gemini_api import generate_text
-from utils.common import get_recent_history, save_draft
+from utils.common import get_recent_history, save_draft, get_user_firstname
 from utils.logger import setup_logger
 from pyrogram import Client
 from config import PROMPTS, DRAFT_COOLDOWN
@@ -18,20 +18,28 @@ async def handle_mimicry_command(client: Client, chat_id: int, chat_contexts: di
     history = await get_recent_history(client, chat_id, limit=limit)
     current_memo = chat_contexts.get(str(chat_id), "None")
     
+    user_firstname = await get_user_firstname(client)
     mimicry_config = PROMPTS.get('mimicry', {})
-    system_instruction = mimicry_config.get('system_instruction', "Create a context note.")
+    raw_instruction = mimicry_config.get('system_instruction', "Create a context note.")
     
-    prompt = (
-        f"{system_instruction}\n"
-        f"---\nCURRENT MEMO (Previous knowledge): {current_memo}\n---\n"
-        f"CHAT HISTORY:\n{history}\n---\n"
+    # Подставляем имя
+    system_instruction = raw_instruction.replace("{user_firstname}", user_firstname)
+
+    # Mimicry не использует common_formatting, так как результат не идет в Telegram markdown,
+    # а сохраняется одной строкой в .memo
+
+    # Для Gemini API (новый SDK принимает content + system_instruction раздельно)
+    contents = [
+        f"CURRENT MEMO (Previous knowledge): {current_memo}",
+        f"CHAT HISTORY:\n{history}",
         f"TASK: Update/Create the context note."
-    )
+    ]
 
     await asyncio.sleep(DRAFT_COOLDOWN)
     await save_draft(client, chat_id, "🧠 Формулирую контекст...")
     
-    response = await generate_text(prompt)
+    response = await generate_text(contents, system_instruction)
+
     clean_response = response.strip().replace("\n", " ")
     logger.info(f"Generated context for {chat_id}")
     command_to_show = f".memo {clean_response}"

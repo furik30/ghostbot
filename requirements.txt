@@ -1,5 +1,4 @@
-pyrogram
-tgcrypto
-google-generativeai
-python-dotenv
-PyYAML
+pyrogram==2.0.106
+tgcrypto==1.2.5
+google-genai==1.56.0
+python-dotenv==1.0.1
