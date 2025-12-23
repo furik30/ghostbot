@@ -33,6 +33,7 @@ bash <(curl -sL https://raw.githubusercontent.com/furik30/ghostbot/dev/install.s
 |`ghostbot edit-prompts`|Редактировать промпты|
 |`ghostbot status`|Проверить статус контейнера|
 |`ghostbot login`|Повторная авторизация (если слетела сессия)|
+
 ## ⚙️ Функционал
 
 - `.r [кол-во] [стиль 1-3]` — Сгенерировать ответ.
