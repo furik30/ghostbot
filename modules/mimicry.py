@@ -22,13 +22,8 @@ async def handle_mimicry_command(client: Client, chat_id: int, chat_contexts: di
     mimicry_config = PROMPTS.get('mimicry', {})
     raw_instruction = mimicry_config.get('system_instruction', "Create a context note.")
     
-    # Подставляем имя
     system_instruction = raw_instruction.replace("{user_firstname}", user_firstname)
-
-    # Mimicry не использует common_formatting, так как результат не идет в Telegram markdown,
-    # а сохраняется одной строкой в .memo
-
-    # Для Gemini API (новый SDK принимает content + system_instruction раздельно)
+    
     contents = [
         f"CURRENT MEMO (Previous knowledge): {current_memo}",
         f"CHAT HISTORY:\n{history}",

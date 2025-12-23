@@ -1,17 +1,12 @@
 from google import genai
 from google.genai import types
-import os
-import asyncio
-from config import GEMINI_API_KEY
+from config import GEMINI_API_KEY, MODEL_NAME
 from utils.logger import setup_logger
 
 logger = setup_logger("GeminiAPI")
 
 # Инициализация клиента Google GenAI
 client = genai.Client(api_key=GEMINI_API_KEY)
-
-# Настройка модели
-MODEL_NAME = "gemini-2.0-flash-exp"
 
 async def generate_text(contents, system_instruction: str) -> str:
     """
@@ -56,11 +51,6 @@ async def generate_text(contents, system_instruction: str) -> str:
 
         logger.info(f"Sending request to Gemini ({MODEL_NAME})...")
 
-        # Вызов API (асинхронной обертки в SDK пока может не быть, используем run_in_executor если нужно,
-        # но google-genai поддерживает async методы, если клиент создан правильно.
-        # В версии 0.1+ клиент синхронный, но есть .aio.
-        # Проверим документацию: client.aio.models.generate_content
-
         response = await client.aio.models.generate_content(
             model=MODEL_NAME,
             contents=formatted_contents,
@@ -75,4 +65,4 @@ async def generate_text(contents, system_instruction: str) -> str:
 
     except Exception as e:
         logger.error(f"Gemini API Error: {e}", exc_info=True)
-        return f"Ошибка API: {e}"
+        return f"⚠️ Gemini Error: {str(e)}"
