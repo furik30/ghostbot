@@ -1,9 +1,9 @@
 import asyncio
 from utils.gemini_api import generate_text
-from utils.common import get_multimodal_history, save_draft, get_user_firstname
+from utils.common import get_multimodal_history, save_draft
 from utils.logger import setup_logger
 from pyrogram import Client, enums
-from config import PROMPTS, DRAFT_COOLDOWN
+from config import DRAFT_COOLDOWN
 
 logger = setup_logger("FunTools")
 
