@@ -20,14 +20,15 @@ async def handle_roast_command(client: Client, chat_id: int, args: list):
     # 2. История
     history_parts = await get_multimodal_history(client, chat_id, limit=15)
 
-    system_instruction = (
-        "Ты — стендап-комик с очень черным и едким чувством юмора. "
-        "Твоя задача — жестко, но смешно 'прожарить' (roast) участников чата на основе их сообщений. "
-        "Высмеивай их логику, грамотность, стиль общения, темы. "
-        "Не сдерживайся. Используй сарказм, иронию и панчи. "
-        "Язык: Русский. "
-        "Формат: Текст для Telegram (можно использовать Markdown, смайлики)."
-    )
+    # 3. Подготовка промпта
+    user_firstname = await get_user_firstname(client)
+
+    roast_config = PROMPTS.get('roast', {})
+    raw_instruction = roast_config.get('system_instruction', "Roast this chat.")
+    common_formatting = PROMPTS.get('common_formatting', "")
+
+    system_instruction = raw_instruction.replace("{common_formatting}", common_formatting)
+    system_instruction = system_instruction.replace("{user_firstname}", user_firstname)
 
     final_contents = ["Here is the chat history to roast:", *history_parts]
 

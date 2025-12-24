@@ -1,7 +1,7 @@
 import asyncio
 import re
 from utils.gemini_api import generate_text
-from utils.common import get_multimodal_history, save_draft
+from utils.common import get_multimodal_history, save_draft, get_user_firstname
 from utils.logger import setup_logger
 from pyrogram import Client, enums
 from config import PROMPTS, DRAFT_COOLDOWN
@@ -39,8 +39,16 @@ async def handle_explain_command(client: Client, chat_id: int, args: list, conte
     # 2. Сбор мультимодальной истории
     history_parts = await get_multimodal_history(client, chat_id, limit=msg_count)
     
+    # 3. Подготовка промпта
+    user_firstname = await get_user_firstname(client)
     explain_config = PROMPTS.get('explain', {})
-    system_instruction = explain_config.get('system_instruction', "Analyze chat.")
+
+    raw_instruction = explain_config.get('system_instruction', "Analyze chat.")
+    common_formatting = PROMPTS.get('common_formatting', "")
+
+    # Подставляем форматирование и имя
+    system_instruction = raw_instruction.replace("{common_formatting}", common_formatting)
+    system_instruction = system_instruction.replace("{user_firstname}", user_firstname)
     
     final_contents = []
     intro_text = (

@@ -28,7 +28,7 @@ case "$1" in
         ;;
     restart)
         echo -e "${YELLOW}Restarting...${NC}"
-        docker compose restart
+        docker compose up -d --force-recreate
         ;;
     logs)
         LINES=${2:-100}

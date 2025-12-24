@@ -3,7 +3,7 @@ import json
 import os
 from pyrogram import Client, raw
 from config import API_ID, API_HASH, SESSION_NAME, CONTEXT_FILE
-from modules import reply_generator, prompt_builder, text_fixer, memo, explain, mimicry, funtools
+from modules import reply_generator, prompt_builder, text_fixer, memo, explain, mimicry, funtools, transcriber
 from utils.logger import setup_logger
 
 logger = setup_logger("GhostBotCore")
@@ -91,6 +91,11 @@ async def draft_watcher(client: Client, update, users, chats):
             logger.info(f"Command .roast detected in {chat_id}")
             args = draft_text.split()[1:]
             await funtools.handle_roast_command(client, chat_id, args)
+
+        elif draft_text.startswith(".vtt") or draft_text.startswith(".гс"):
+            logger.info(f"Command .vtt detected in {chat_id}")
+            args = draft_text.split()[1:]
+            await transcriber.handle_vtt_command(client, chat_id, args)
 
     except Exception as e:
         logger.error(f"Critical error in draft_watcher: {e}", exc_info=True)

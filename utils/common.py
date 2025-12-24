@@ -15,6 +15,15 @@ async def save_draft(client: Client, chat_id: int, text: str):
     except Exception as e:
         logger.error(f"Failed to save draft in {chat_id}: {e}")
 
+async def get_user_firstname(client: Client) -> str:
+    """Возвращает имя текущего пользователя (Me)."""
+    try:
+        me = await client.get_me()
+        return me.first_name or "Пользователь"
+    except Exception as e:
+        logger.error(f"Failed to get user info: {e}")
+        return "Пользователь"
+
 async def get_recent_history(client: Client, chat_id: int, limit: int = 10) -> str:
     """Legacy text-only fetcher (для совместимости)"""
     data = await get_multimodal_history(client, chat_id, limit, text_only=True)
