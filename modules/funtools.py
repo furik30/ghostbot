@@ -1,9 +1,9 @@
 import asyncio
 from utils.gemini_api import generate_text
-from utils.common import get_multimodal_history, save_draft
+from utils.common import get_multimodal_history, save_draft, get_user_firstname
 from utils.logger import setup_logger
 from pyrogram import Client, enums
-from config import DRAFT_COOLDOWN
+from config import DRAFT_COOLDOWN, PROMPTS
 
 logger = setup_logger("FunTools")
 
@@ -43,7 +43,7 @@ async def handle_roast_command(client: Client, chat_id: int, args: list):
 
     # Отправляем результат в Saved Messages
     try:
-        header = "🔥🔥🔥 **ROAST BATTLE** 🔥🔥🔥\n\n"
+        header = "🔥🔥🔥 **Прожарка** 🔥🔥🔥\n\n"
         await client.send_message("me", header + response, parse_mode=enums.ParseMode.MARKDOWN)
         await save_draft(client, chat_id, "") # Чистим драфт
     except Exception as e:

@@ -20,7 +20,7 @@ get_current_branch() {
 case "$1" in
     up)
         echo -e "${GREEN}Starting...${NC}"
-        docker compose up -d
+        docker compose up -d --build
         ;;
     down)
         echo -e "${RED}Stopping...${NC}"
@@ -28,7 +28,7 @@ case "$1" in
         ;;
     restart)
         echo -e "${YELLOW}Restarting...${NC}"
-        docker compose up -d --force-recreate
+        docker compose up -d --build --force-recreate
         ;;
     logs)
         LINES=${2:-100}
@@ -42,7 +42,7 @@ case "$1" in
         
         git fetch origin
         git checkout "$TARGET_BRANCH"
-        git pull origin "$TARGET_BRANCH"
+        git reset --hard origin/"$TARGET_BRANCH"
         
         echo -e "${YELLOW}Rebuilding image...${NC}"
         docker compose build
