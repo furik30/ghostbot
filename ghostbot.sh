@@ -66,7 +66,7 @@ case "$1" in
         ;;
     switch-api)
         KEY_NUM=$2
-        
+
         if [ -z "$KEY_NUM" ]; then
             echo -e "${RED}Ошибка: Укажите номер ключа (например: ghostbot switch-api 2)${NC}"
             exit 1
@@ -89,7 +89,7 @@ case "$1" in
         sed -i "s|^GEMINI_API_KEY=.*|GEMINI_API_KEY=${NEW_KEY_VAL}|" .env
 
         echo -e "${GREEN}Ключ успешно обновлен в .env!${NC}"
-        
+
         $0 restart
         ;;
     help|*)

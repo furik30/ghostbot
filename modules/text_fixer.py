@@ -10,17 +10,27 @@ logger = setup_logger("TextFixer")
 async def handle_fix_command(client: Client, chat_id: int, text: str, **kwargs):
     """
     Обработчик .fix
-    Внимание: .fix имеет сложную логику (префикс/постфикс).
-    Диспетчер registry работает только по префиксу.
-    Поэтому здесь мы будем получать только вариант, когда .fix стоит в начале.
+    Поддерживает:
+    1. Префикс: .fix Текст (text = "Текст")
+    2. Инфикс/Постфикс: Текст .fix Инструкция (text = "Текст .fix Инструкция") - благодаря registry, возвращающему полный текст
     """
-    # Если команда вызвана через реестр, то text - это всё, что после ".fix "
-    # То есть: ".fix текст инструкция" -> text="текст инструкция"
-    # Нам нужно понять, где инструкция. Допустим, считаем, что инструкции нет, или разделитель?
-    # Упростим: .fix текст
     
-    original_text = text.strip()
-    user_instruction = "" # В префиксном режиме сложно отделить инструкцию без спец разделителя
+    # Попытка найти разделитель " .fix" (с пробелом перед точкой)
+    if " .fix" in text:
+        parts = text.split(" .fix", 1)
+        original_text = parts[0].strip()
+        user_instruction = parts[1].strip() if len(parts) > 1 else ""
+    elif text.startswith(".fix "):
+        # Если пришло как префикс, но registry уже обрезал ".fix " в начале,
+        # то 'text' это уже чистый контент.
+        # Но если registry вернул полный текст (в случае не-префиксного поиска), то обрабатываем выше.
+        # А если registry отрезал префикс, то text не содержит ".fix" в начале.
+        original_text = text.strip()
+        user_instruction = ""
+    else:
+        # Fallback: просто текст
+        original_text = text.strip()
+        user_instruction = ""
 
     logger.info(f"Fixing text length: {len(original_text)}. Instruction: {user_instruction}")
 
@@ -57,7 +67,4 @@ async def handle_fix_command(client: Client, chat_id: int, text: str, **kwargs):
         await save_draft(client, chat_id, response)
 
 def register(registry):
-    # Регистрируем только префиксную версию.
-    # Постфиксная (.fix в конце) требует анализа всего текста в main.py, реестр тут бессилен,
-    # либо нужно усложнять реестр. Пока оставим как есть.
     registry.register(['.fix'], handle_fix_command, "Исправление текста")

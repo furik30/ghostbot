@@ -11,11 +11,17 @@ async def handle_vtt_command(client: Client, chat_id: int, text: str, **kwargs):
     """
     Команда .vtt (.гс) — транскрибация последних голосовых/видео сообщений.
     Ищет последние N сообщений с аудио/видео и расшифровывает их.
+    Аргумент text может содержать лимит (число).
     """
-    limit = 20 # Глубина поиска
+    limit = 20 # Дефолтная глубина поиска
     max_msgs_to_process = 5 # Сколько последних ГС обрабатывать
 
-    logger.info(f"Transcribing voice/video in {chat_id}")
+    # Парсинг аргументов
+    args = text.split()
+    if args and args[0].isdigit():
+        limit = int(args[0])
+
+    logger.info(f"Transcribing voice/video in {chat_id} (limit={limit})")
 
     # 1. Индикация
     await asyncio.sleep(DRAFT_COOLDOWN)

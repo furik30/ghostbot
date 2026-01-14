@@ -24,21 +24,35 @@ class CommandRegistry:
 
     def get_handler(self, text: str):
         """
-        Ищет обработчик по началу текста.
+        Ищет обработчик в тексте.
+        1. Сначала проверяет префикс (команда в начале).
+        2. Затем ищет команду внутри текста (инфикс/постфикс).
+
         Возвращает: (handler, trigger, args_text) или (None, None, None)
         """
         if not text:
             return None, None, None
 
-        # Сортируем триггеры по длине (обратно), чтобы длинные команды (.roast)
-        # проверялись раньше коротких (.r), если они пересекаются.
+        # Сортируем триггеры по длине (обратно)
         sorted_triggers = sorted(self.commands.keys(), key=len, reverse=True)
 
+        # 1. Проверка префикса (стандартный режим)
         for trigger in sorted_triggers:
-            # Проверяем: либо точное совпадение, либо команда + пробел
             if text == trigger or text.startswith(trigger + " "):
                 args_text = text[len(trigger):].strip()
                 return self.commands[trigger], trigger, args_text
+
+        # 2. Проверка инфикса/постфикса (специальный режим, например для .fix)
+        # Ищем триггер, окруженный пробелами, или в конце строки с пробелом перед ним.
+        for trigger in sorted_triggers:
+            # Варианты: " .cmd ", " .cmd" (конец), ".cmd" (если весь текст - команда, но это попало бы в п.1)
+            # Мы ищем " " + trigger
+            search_pattern = " " + trigger
+            if search_pattern in text:
+                 # Если найдено, мы возвращаем ВЕСЬ текст как аргумент,
+                 # так как модуль (например text_fixer) должен сам разбить его.
+                 # Это важно для логики "Текст .fix Инструкция"
+                 return self.commands[trigger], trigger, text
 
         return None, None, None
 
