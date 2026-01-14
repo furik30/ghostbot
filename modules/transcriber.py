@@ -7,41 +7,40 @@ from config import PROMPTS, DRAFT_COOLDOWN
 
 logger = setup_logger("Transcriber")
 
-async def handle_vtt_command(client: Client, chat_id: int, args: list):
+async def handle_vtt_command(client: Client, chat_id: int, text: str, **kwargs):
     """
-    Команда .vtt (.гс) — транскрибация последних голосовых/видео сообщений.
-    Ищет последние N сообщений с аудио/видео и расшифровывает их.
+    Команда .vtt (.гс) — транскрибация голосовых/видео сообщений.
+    Использование: .vtt [кол-во]
+    Пример: .vtt 3 (найдет 3 последних голосовых, как глубоко бы они ни были)
     """
-    limit = 20 # Глубина поиска
-    max_msgs_to_process = 5 # Сколько последних ГС обрабатывать
+    limit = 20 # Максимальная глубина поиска
+    max_msgs_to_process = 5 # По дефолту сколько последних ГС обрабатывать
+    args = text.split()
+    if args and args[0].isdigit():
+        max_msgs_to_process = int(args[0])
 
-    logger.info(f"Transcribing voice/video in {chat_id}")
+    logger.info(f"Looking for {max_msgs_to_process} media msgs in {chat_id} (scan depth={limit})")
 
     # 1. Индикация
     await asyncio.sleep(DRAFT_COOLDOWN)
-    await save_draft(client, chat_id, "👂 Слушаю эфир...")
+    await save_draft(client, chat_id, f"👂 Слушаю {max_msgs_to_process} гс...")
 
     # 2. Поиск сообщений с аудио
     msgs_to_process = []
 
+    # Мы запрашиваем историю порциями (или до лимита), но фильтруем сами
     async for msg in client.get_chat_history(chat_id, limit=limit):
+        # Если мы уже нашли нужное количество — стоп
         if len(msgs_to_process) >= max_msgs_to_process:
             break
 
         is_media = False
-        media_type = ""
-        duration = 0
-
+        
+        # Проверка на наличие голосового или видео-кружочка
         if msg.voice:
             is_media = True
-            media_type = "voice"
-            duration = msg.voice.duration
         elif msg.video_note:
             is_media = True
-            media_type = "video_note"
-            duration = msg.video_note.duration
-        # Обычные видео пока игнорируем для VTT, если это не видеосообщение,
-        # или можно добавить поддержку msg.video, но они тяжелые.
 
         if is_media:
             msgs_to_process.append(msg)
@@ -103,3 +102,6 @@ async def handle_vtt_command(client: Client, chat_id: int, args: list):
     except Exception as e:
         logger.error(f"Failed to send transcript: {e}")
         await save_draft(client, chat_id, "❌ Ошибка отправки")
+
+def register(registry):
+    registry.register(['.vtt', '.гс'], handle_vtt_command, "Расшифровка голосовых")

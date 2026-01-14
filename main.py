@@ -1,13 +1,26 @@
-import logging
 import json
 import os
-from pyrogram import Client, raw
+from pyrogram import Client, raw, filters
 from config import API_ID, API_HASH, SESSION_NAME, CONTEXT_FILE
-from modules import reply_generator, prompt_builder, text_fixer, memo, explain, mimicry, funtools, transcriber
+from modules import reply_generator, prompt_builder, text_fixer, memo, explain, mimicry, funtools, transcriber, registry
 from utils.logger import setup_logger
 
 logger = setup_logger("GhostBotCore")
 
+# Инициализация реестра команд
+# Импортированные модули:
+modules_list = [
+    reply_generator, prompt_builder, text_fixer,
+    memo, explain, mimicry, funtools, transcriber
+]
+
+for mod in modules_list:
+    if hasattr(mod, 'register'):
+        mod.register(registry.registry)
+    else:
+        logger.warning(f"Module {mod.__name__} has no register function.")
+
+# Загрузка контекста
 if os.path.exists(CONTEXT_FILE):
     with open(CONTEXT_FILE, 'r', encoding='utf-8') as f:
         chat_contexts = json.load(f)
@@ -22,6 +35,41 @@ def save_context(data):
 
 app = Client(f"sessions/{SESSION_NAME}", api_id=API_ID, api_hash=API_HASH)
 
+# 1. ОБРАБОТЧИК ИСХОДЯЩИХ СООБЩЕНИЙ (Перехват отправки)
+@app.on_message(filters.me & filters.text)
+async def outgoing_message_handler(client: Client, message):
+    text = message.text
+    if not text:
+        return
+
+    # Проверяем, является ли сообщение командой
+    handler, trigger, args_text = registry.registry.get_handler(text)
+
+    if handler:
+        logger.info(f"Interceptor caught command '{trigger}' in chat {message.chat.id}. Deleting...")
+        try:
+            # 1. Удаляем отправленное сообщение
+            await message.delete()
+        except Exception as e:
+            logger.error(f"Failed to delete message: {e}")
+
+        # 2. Выполняем команду
+        # Аргументы: client, chat_id, text (аргументы), kwargs
+        chat_id = message.chat.id
+        context_note = chat_contexts.get(str(chat_id), "")
+
+        try:
+            await handler(
+                client=client,
+                chat_id=chat_id,
+                text=args_text,
+                context_note=context_note,
+                chat_contexts=chat_contexts
+            )
+        except Exception as e:
+            logger.error(f"Error executing handler for {trigger}: {e}", exc_info=True)
+
+# 2. ОБРАБОТЧИК ЧЕРНОВИКОВ (Drafts)
 @app.on_raw_update()
 async def draft_watcher(client: Client, update, users, chats):
     if not isinstance(update, raw.types.UpdateDraftMessage):
@@ -47,45 +95,21 @@ async def draft_watcher(client: Client, update, users, chats):
         if not draft_text:
             return
 
-        if draft_text.startswith(".r ") or draft_text.startswith(".к "):
-            logger.info(f"Command .r detected in {chat_id}")
-            args = draft_text.split()[1:] 
-            context_note = chat_contexts.get(str(chat_id), "")
-            await reply_generator.handle_reply_command(client, chat_id, args, context_note)
-
-        elif draft_text.startswith(".p ") or draft_text.startswith(".prompt "):
-            logger.info(f"Command .p detected in {chat_id}")
-            await prompt_builder.handle_prompt_command(client, chat_id, draft_text)
-
-        elif ".fix" in draft_text:
-            if draft_text.endswith(" .fix") or ".fix " in draft_text:
-                logger.info(f"Command .fix detected in {chat_id}")
-                await text_fixer.handle_fix_command(client, chat_id, draft_text)
-
-        elif draft_text.startswith(".memo "):
-            logger.info(f"Command .memo detected in {chat_id}")
-            await memo.handle_memo_command(client, chat_id, draft_text, chat_contexts)
+        # Ищем обработчик
+        handler, trigger, args_text = registry.registry.get_handler(draft_text)
         
-        elif draft_text.startswith(".memoshow") or draft_text == ".ms":
-            logger.info(f"Command .memoshow detected in {chat_id}")
-            await memo.handle_memoshow_command(client, chat_id, chat_contexts)
-            
-        elif draft_text.startswith(".mimi"):
-            logger.info(f"Command .mimi detected in {chat_id}")
-            args = draft_text.split()[1:]
-            limit = 100
-            if args:
-                try:
-                    limit = int(args[0])
-                except ValueError:
-                    limit = 100
-            await mimicry.handle_mimicry_command(client, chat_id, chat_contexts, limit)
-            
-        elif draft_text.startswith(".e ") or draft_text.startswith(".explain "):
-            logger.info(f"Command .e detected in {chat_id}")
-            args = draft_text.split()[1:]
+        if handler:
+            logger.info(f"Draft watcher caught command '{trigger}' in chat {chat_id}")
             context_note = chat_contexts.get(str(chat_id), "")
-            await explain.handle_explain_command(client, chat_id, args, context_note)
+
+            # Выполняем
+            await handler(
+                client=client,
+                chat_id=chat_id,
+                text=args_text,
+                context_note=context_note,
+                chat_contexts=chat_contexts
+            )
 
         elif draft_text.startswith(".roast"):
             logger.info(f"Command .roast detected in {chat_id}")

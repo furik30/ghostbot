@@ -25,7 +25,13 @@ def clean_html(text: str) -> str:
 
     return text
 
-async def handle_explain_command(client: Client, chat_id: int, args: list, context_note: str = ""):
+async def handle_explain_command(client: Client, chat_id: int, text: str, **kwargs):
+    """
+    Обработчик .e / .explain
+    """
+    context_note = kwargs.get("context_note", "")
+    args = text.split()
+
     msg_count = 10
     if len(args) > 0 and args[0].isdigit():
         msg_count = int(args[0])
@@ -101,3 +107,6 @@ async def handle_explain_command(client: Client, chat_id: int, args: list, conte
     except Exception as e:
         logger.error(f"Failed to send: {e}")
         await save_draft(client, chat_id, f"❌ Ошибка отправки")
+
+def register(registry):
+    registry.register(['.e', '.explain'], handle_explain_command, "Психопортрет и советы")

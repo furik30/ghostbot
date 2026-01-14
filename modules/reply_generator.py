@@ -7,7 +7,15 @@ from config import PROMPTS, DRAFT_COOLDOWN
 
 logger = setup_logger("ReplyGen")
 
-async def handle_reply_command(client: Client, chat_id: int, args: list, context_note: str = ""):
+async def handle_reply_command(client: Client, chat_id: int, text: str, **kwargs):
+    """
+    Обработчик для команд .r / .к
+    text: остаток строки после команды (аргументы)
+    kwargs: может содержать context_note
+    """
+    args = text.split()
+    context_note = kwargs.get("context_note", "")
+
     logger.info(f"Generating reply for {chat_id} with args: {args}")
     
     await asyncio.sleep(DRAFT_COOLDOWN)
@@ -32,7 +40,6 @@ async def handle_reply_command(client: Client, chat_id: int, args: list, context
     
     # Получаем имя
     user_firstname = await get_user_firstname(client)
-
     reply_config = PROMPTS.get('reply', {})
     styles = reply_config.get('styles', {})
     raw_instruction = reply_config.get('system_instruction', "You are me.")
@@ -62,3 +69,6 @@ async def handle_reply_command(client: Client, chat_id: int, args: list, context
 
     await asyncio.sleep(DRAFT_COOLDOWN)
     await save_draft(client, chat_id, response)
+
+def register(registry):
+    registry.register(['.r', '.к'], handle_reply_command, "Генерация ответа")

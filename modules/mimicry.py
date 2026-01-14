@@ -7,11 +7,19 @@ from config import PROMPTS, DRAFT_COOLDOWN
 
 logger = setup_logger("MimicryMod")
 
-async def handle_mimicry_command(client: Client, chat_id: int, chat_contexts: dict, limit: int = 100):
+async def handle_mimicry_command(client: Client, chat_id: int, text: str, **kwargs):
     """
     Логика команды .mimi
     Читает историю + ТЕКУЩУЮ ЗАМЕТКУ -> Создает актуализированный контекст.
     """
+    chat_contexts = kwargs.get("chat_contexts", {})
+
+    # Парсинг лимита
+    args = text.split()
+    limit = 100
+    if args and args[0].isdigit():
+        limit = int(args[0])
+
     await asyncio.sleep(DRAFT_COOLDOWN)
     await save_draft(client, chat_id, "🕵️‍♂️ Составляю досье на собеседника...")
     
@@ -21,7 +29,7 @@ async def handle_mimicry_command(client: Client, chat_id: int, chat_contexts: di
     user_firstname = await get_user_firstname(client)
     mimicry_config = PROMPTS.get('mimicry', {})
     raw_instruction = mimicry_config.get('system_instruction', "Create a context note.")
-    
+
     system_instruction = raw_instruction.replace("{user_firstname}", user_firstname)
     
     contents = [
@@ -41,3 +49,6 @@ async def handle_mimicry_command(client: Client, chat_id: int, chat_contexts: di
     
     await asyncio.sleep(1.0)
     await save_draft(client, chat_id, command_to_show)
+
+def register(registry):
+    registry.register(['.mimi'], handle_mimicry_command, "Создать досье")

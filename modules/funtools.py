@@ -3,11 +3,11 @@ from utils.gemini_api import generate_text
 from utils.common import get_multimodal_history, save_draft, get_user_firstname
 from utils.logger import setup_logger
 from pyrogram import Client, enums
-from config import DRAFT_COOLDOWN, PROMPTS
+from config import PROMPTS, DRAFT_COOLDOWN
 
 logger = setup_logger("FunTools")
 
-async def handle_roast_command(client: Client, chat_id: int, args: list):
+async def handle_roast_command(client: Client, chat_id: int, text: str, **kwargs):
     """
     Команда .roast — прожарка чата.
     """
@@ -49,3 +49,6 @@ async def handle_roast_command(client: Client, chat_id: int, args: list):
     except Exception as e:
         logger.error(f"Failed to send roast: {e}")
         await save_draft(client, chat_id, "❌ Ошибка прожарки")
+
+def register(registry):
+    registry.register(['.roast'], handle_roast_command, "Прожарка чата")
