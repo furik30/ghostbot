@@ -1,13 +1,21 @@
 import asyncio
 from utils.gemini_api import generate_text
-from utils.common import get_multimodal_history, save_draft
+from utils.common import get_multimodal_history, save_draft, get_user_firstname
 from utils.logger import setup_logger
 from pyrogram import Client
 from config import PROMPTS, DRAFT_COOLDOWN
 
 logger = setup_logger("ReplyGen")
 
-async def handle_reply_command(client: Client, chat_id: int, args: list, context_note: str = ""):
+async def handle_reply_command(client: Client, chat_id: int, text: str, **kwargs):
+    """
+    Обработчик для команд .r / .к
+    text: остаток строки после команды (аргументы)
+    kwargs: может содержать context_note
+    """
+    args = text.split()
+    context_note = kwargs.get("context_note", "")
+
     logger.info(f"Generating reply for {chat_id} with args: {args}")
     
     await asyncio.sleep(DRAFT_COOLDOWN)
@@ -30,9 +38,15 @@ async def handle_reply_command(client: Client, chat_id: int, args: list, context
 
     history_parts = await get_multimodal_history(client, chat_id, limit=msg_count)
     
+    # Получаем имя
+    user_firstname = await get_user_firstname(client)
     reply_config = PROMPTS.get('reply', {})
     styles = reply_config.get('styles', {})
-    system_instruction = reply_config.get('system_instruction', "You are me.")
+    raw_instruction = reply_config.get('system_instruction', "You are me.")
+
+    # Подставляем имя
+    system_instruction = raw_instruction.replace("{user_firstname}", user_firstname)
+
     selected_style = styles.get(level, styles.get(2, "Normal style"))
     
     final_contents = []
@@ -55,3 +69,6 @@ async def handle_reply_command(client: Client, chat_id: int, args: list, context
 
     await asyncio.sleep(DRAFT_COOLDOWN)
     await save_draft(client, chat_id, response)
+
+def register(registry):
+    registry.register(['.r', '.к'], handle_reply_command, "Генерация ответа")

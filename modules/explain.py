@@ -1,13 +1,37 @@
 import asyncio
+import re
 from utils.gemini_api import generate_text
-from utils.common import get_multimodal_history, save_draft
+from utils.common import get_multimodal_history, save_draft, get_user_firstname
 from utils.logger import setup_logger
 from pyrogram import Client, enums
 from config import PROMPTS, DRAFT_COOLDOWN
 
 logger = setup_logger("ExplainMod")
 
-async def handle_explain_command(client: Client, chat_id: int, args: list, context_note: str = ""):
+def clean_html(text: str) -> str:
+    """
+    Cleans up HTML tags from the text:
+    - Replaces <br>, <br/>, <br /> with newlines.
+    - Removes all other HTML tags.
+    """
+    if not text:
+        return ""
+
+    # Заменяем <br> на \n
+    text = re.sub(r'<br\s*/?>', '\n', text, flags=re.IGNORECASE)
+
+    # Удаляем остальные теги
+    text = re.sub(r'<[^>]+>', '', text)
+
+    return text
+
+async def handle_explain_command(client: Client, chat_id: int, text: str, **kwargs):
+    """
+    Обработчик .e / .explain
+    """
+    context_note = kwargs.get("context_note", "")
+    args = text.split()
+
     msg_count = 10
     if len(args) > 0 and args[0].isdigit():
         msg_count = int(args[0])
@@ -21,8 +45,16 @@ async def handle_explain_command(client: Client, chat_id: int, args: list, conte
     # 2. Сбор мультимодальной истории
     history_parts = await get_multimodal_history(client, chat_id, limit=msg_count)
     
+    # 3. Подготовка промпта
+    user_firstname = await get_user_firstname(client)
     explain_config = PROMPTS.get('explain', {})
-    system_instruction = explain_config.get('system_instruction', "Analyze chat.")
+
+    raw_instruction = explain_config.get('system_instruction', "Analyze chat.")
+    common_formatting = PROMPTS.get('common_formatting', "")
+
+    # Подставляем форматирование и имя
+    system_instruction = raw_instruction.replace("{common_formatting}", common_formatting)
+    system_instruction = system_instruction.replace("{user_firstname}", user_firstname)
     
     final_contents = []
     intro_text = (
@@ -37,13 +69,22 @@ async def handle_explain_command(client: Client, chat_id: int, args: list, conte
     await asyncio.sleep(DRAFT_COOLDOWN)
     await save_draft(client, chat_id, "🧠 Генерирую психопортрет...")
     
+    logger.info(f"Sending prompt to LLM (intro): {intro_text[:200]}...")
+
     response = await generate_text(final_contents, system_instruction)
     
+    logger.info(f"Raw LLM response: {response}")
+
+    # Очистка HTML
+    clean_response = clean_html(response)
+    if clean_response != response:
+        logger.info("Response cleaned from HTML tags.")
+
     chat_info = await client.get_chat(chat_id)
     chat_title = chat_info.title or chat_info.first_name or "Unknown Chat"
     
     header = f"📊 **Анализ чата:** {chat_title}\n*(Последние {msg_count} сообщений)*\n\n"
-    full_text = header + response
+    full_text = header + clean_response
     
     logger.info(f"Sending explanation to Saved Messages")
     
@@ -66,3 +107,6 @@ async def handle_explain_command(client: Client, chat_id: int, args: list, conte
     except Exception as e:
         logger.error(f"Failed to send: {e}")
         await save_draft(client, chat_id, f"❌ Ошибка отправки")
+
+def register(registry):
+    registry.register(['.e', '.explain'], handle_explain_command, "Психопортрет и советы")
