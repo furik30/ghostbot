@@ -4,6 +4,7 @@ from pyrogram import Client, raw, filters
 from config import API_ID, API_HASH, SESSION_NAME, CONTEXT_FILE
 from modules import reply_generator, prompt_builder, text_fixer, memo, explain, mimicry, funtools, transcriber, registry
 from utils.logger import setup_logger
+from utils.common import save_draft
 
 logger = setup_logger("GhostBotCore")
 
@@ -69,7 +70,9 @@ async def outgoing_message_handler(client: Client, message):
         except Exception as e:
             logger.error(f"Error executing handler for {trigger}: {e}", exc_info=True)
 
-# 2. ОБРАБОТЧИК ЧЕРНОВИКОВ (Drafts)
+# 2. ОБРАБОТЧИК ЧЕРНОВИКОВ (Drafts) — "Призрачный режим"
+# Позволяет выполнять команды, набрав их в поле ввода, но НЕ отправляя.
+# Бот видит черновик, выполняет команду и очищает поле.
 @app.on_raw_update()
 async def draft_watcher(client: Client, update, users, chats):
     if not isinstance(update, raw.types.UpdateDraftMessage):
@@ -95,31 +98,31 @@ async def draft_watcher(client: Client, update, users, chats):
         if not draft_text:
             return
 
-        # Ищем обработчик
+        # Ищем обработчик через реестр
         handler, trigger, args_text = registry.registry.get_handler(draft_text)
         
         if handler:
             logger.info(f"Draft watcher caught command '{trigger}' in chat {chat_id}")
+
+            # Сразу очищаем черновик, чтобы предотвратить случайную отправку
+            # и показать пользователю, что команда принята
+            await save_draft(client, chat_id, "")
+
             context_note = chat_contexts.get(str(chat_id), "")
 
-            # Выполняем
-            await handler(
-                client=client,
-                chat_id=chat_id,
-                text=args_text,
-                context_note=context_note,
-                chat_contexts=chat_contexts
-            )
-
-        elif draft_text.startswith(".roast"):
-            logger.info(f"Command .roast detected in {chat_id}")
-            args = draft_text.split()[1:]
-            await funtools.handle_roast_command(client, chat_id, args)
-
-        elif draft_text.startswith(".vtt") or draft_text.startswith(".гс"):
-            logger.info(f"Command .vtt detected in {chat_id}")
-            args = draft_text.split()[1:]
-            await transcriber.handle_vtt_command(client, chat_id, args)
+            try:
+                # Выполняем
+                await handler(
+                    client=client,
+                    chat_id=chat_id,
+                    text=args_text,
+                    context_note=context_note,
+                    chat_contexts=chat_contexts
+                )
+            except Exception as e:
+                logger.error(f"Error executing handler for {trigger} via draft: {e}", exc_info=True)
+                # В случае ошибки можно вернуть текст в драфт или сообщить логом
+                # await save_draft(client, chat_id, f"{draft_text} (Error)")
 
     except Exception as e:
         logger.error(f"Critical error in draft_watcher: {e}", exc_info=True)
