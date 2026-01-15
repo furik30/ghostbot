@@ -3,27 +3,11 @@ import re
 from utils.gemini_api import generate_text
 from utils.common import get_multimodal_history, save_draft, get_user_firstname
 from utils.logger import setup_logger
+from utils.text_tools import clean_html, split_text
 from pyrogram import Client, enums
 from config import PROMPTS, DRAFT_COOLDOWN
 
 logger = setup_logger("ExplainMod")
-
-def clean_html(text: str) -> str:
-    """
-    Cleans up HTML tags from the text:
-    - Replaces <br>, <br/>, <br /> with newlines.
-    - Removes all other HTML tags.
-    """
-    if not text:
-        return ""
-
-    # Заменяем <br> на \n
-    text = re.sub(r'<br\s*/?>', '\n', text, flags=re.IGNORECASE)
-
-    # Удаляем остальные теги
-    text = re.sub(r'<[^>]+>', '', text)
-
-    return text
 
 async def handle_explain_command(client: Client, chat_id: int, text: str, **kwargs):
     """
@@ -89,15 +73,15 @@ async def handle_explain_command(client: Client, chat_id: int, text: str, **kwar
     logger.info(f"Sending explanation to Saved Messages")
     
     try:
-        limit = 4000
-        if len(full_text) > limit:
-            chunks = [full_text[i:i+limit] for i in range(0, len(full_text), limit)]
-            for i, chunk in enumerate(chunks):
-                text_to_send = chunk if i == 0 else f"...(часть {i+1})\n{chunk}"
-                await client.send_message("me", text_to_send, parse_mode=enums.ParseMode.MARKDOWN)
-                await asyncio.sleep(0.5) 
-        else:
-            await client.send_message("me", full_text, parse_mode=enums.ParseMode.MARKDOWN)
+        chunks = split_text(full_text)
+        for i, chunk in enumerate(chunks):
+            # Если частей несколько, добавляем пометку
+            text_to_send = chunk
+            if len(chunks) > 1 and i > 0:
+                text_to_send = f"...(часть {i+1})\n{chunk}"
+
+            await client.send_message("me", text_to_send, parse_mode=enums.ParseMode.MARKDOWN)
+            await asyncio.sleep(0.5)
         
         await asyncio.sleep(DRAFT_COOLDOWN)
         await save_draft(client, chat_id, "✅ Анализ отправлен в Избранное")
