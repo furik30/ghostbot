@@ -2,6 +2,7 @@ import asyncio
 from utils.gemini_api import generate_text
 from utils.common import save_draft, get_user_firstname
 from utils.logger import setup_logger
+from utils.text_tools import split_text
 from pyrogram import Client, enums
 from config import PROMPTS, DRAFT_COOLDOWN
 
@@ -97,7 +98,15 @@ async def handle_vtt_command(client: Client, chat_id: int, text: str, **kwargs):
     await asyncio.sleep(0.5)
 
     try:
-        await client.send_message("me", full_transcript, parse_mode=enums.ParseMode.MARKDOWN)
+        chunks = split_text(full_transcript)
+        for i, chunk in enumerate(chunks):
+            text_to_send = chunk
+            if len(chunks) > 1 and i > 0:
+                text_to_send = f"...(часть {i+1})\n{chunk}"
+
+            await client.send_message("me", text_to_send, parse_mode=enums.ParseMode.MARKDOWN)
+            await asyncio.sleep(0.5)
+
         await save_draft(client, chat_id, "")
     except Exception as e:
         logger.error(f"Failed to send transcript: {e}")

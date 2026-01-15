@@ -2,6 +2,7 @@ import asyncio
 from utils.gemini_api import generate_text
 from utils.common import get_multimodal_history, save_draft, get_user_firstname
 from utils.logger import setup_logger
+from utils.text_tools import split_text
 from pyrogram import Client, enums
 from config import PROMPTS, DRAFT_COOLDOWN
 
@@ -44,7 +45,17 @@ async def handle_roast_command(client: Client, chat_id: int, text: str, **kwargs
     # Отправляем результат в Saved Messages
     try:
         header = "🔥🔥🔥 **Прожарка** 🔥🔥🔥\n\n"
-        await client.send_message("me", header + response, parse_mode=enums.ParseMode.MARKDOWN)
+        full_text = header + response
+
+        chunks = split_text(full_text)
+        for i, chunk in enumerate(chunks):
+            text_to_send = chunk
+            if len(chunks) > 1 and i > 0:
+                text_to_send = f"...(часть {i+1})\n{chunk}"
+
+            await client.send_message("me", text_to_send, parse_mode=enums.ParseMode.MARKDOWN)
+            await asyncio.sleep(0.5)
+
         await save_draft(client, chat_id, "") # Чистим драфт
     except Exception as e:
         logger.error(f"Failed to send roast: {e}")
