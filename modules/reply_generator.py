@@ -20,9 +20,10 @@ async def handle_reply_command(client: Client, chat_id: int, text: str, **kwargs
 
     logger.info(f"Generating reply for {chat_id} (Force={force}) with args: {args}")
     
-    if not force:
-        await asyncio.sleep(DRAFT_COOLDOWN)
-        await save_draft(client, chat_id, "🧠 Читаю переписку...")
+    # 1. Индикация (для обоих режимов, но с разным текстом)
+    initial_status = "🚀 Быстрый ответ..." if force else "🧠 Читаю переписку..."
+    await asyncio.sleep(DRAFT_COOLDOWN)
+    await save_draft(client, chat_id, initial_status)
     
     msg_count = 5
     level = 2
@@ -64,6 +65,7 @@ async def handle_reply_command(client: Client, chat_id: int, text: str, **kwargs
     final_contents.append(intro_text)
     final_contents.extend(history_parts)
 
+    # Обновляем статус перед генерацией, если не Force (в Force оставляем "Быстрый ответ")
     if not force:
         await asyncio.sleep(DRAFT_COOLDOWN)
         await save_draft(client, chat_id, "🧠 Думаю...")
@@ -75,8 +77,15 @@ async def handle_reply_command(client: Client, chat_id: int, text: str, **kwargs
         # Force: отправляем сразу в чат
         try:
             await client.send_message(chat_id, response, reply_to_message_id=reply_to_id)
+            # Фидбек об успехе
+            await save_draft(client, chat_id, "✅ Отправлено в чат")
+            await asyncio.sleep(3.0)
+            await save_draft(client, chat_id, "")
         except Exception as e:
             logger.error(f"Failed to send force reply: {e}")
+            await save_draft(client, chat_id, "❌ Ошибка отправки")
+            await asyncio.sleep(3.0)
+            await save_draft(client, chat_id, "")
     else:
         # Draft: сохраняем в черновик
         await asyncio.sleep(DRAFT_COOLDOWN)

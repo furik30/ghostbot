@@ -25,32 +25,24 @@ async def handle_fix_command(client: Client, chat_id: int, text: str, **kwargs):
     trigger = kwargs.get('trigger', '.fix') # Default fallback
 
     # Поиск разделителя в тексте (инфиксный режим)
-    # Ищем любую из зарегистрированных команд (.fix, .ff) окруженную пробелами/началом строки
-    # Но лучше ориентироваться на trigger, если он передан
-    
-    # Паттерн: (?:^|\s) + escaped_trigger + (?:$|\s)
-    # Но нам нужно именно разделить текст.
-
-    # Попробуем найти trigger внутри текста
+    # Ищем любую из зарегистрированных команд (.fix, .ff, .fixf) окруженную пробелами/началом строки
     match = None
     if trigger:
         pattern = r"(?:^|\s)" + re.escape(trigger) + r"(?:$|\s)"
         match = re.search(pattern, text)
 
-    # Если не нашли по переданному триггеру, попробуем найти .fix или .ff явно (fallback)
+    # Если не нашли по переданному триггеру, попробуем найти явно (fallback)
     if not match:
-         match = re.search(r"(?:^|\s)(\.(?:fix|ff))(?:$|\s)", text)
+         match = re.search(r"(?:^|\s)(\.(?:fix|ff|fixf))(?:$|\s)", text)
 
     if match:
         # Инфиксный режим: есть разделитель
-        # match.start() - начало совпадения (возможно пробел)
-        # match.end() - конец совпадения (возможно пробел)
-        # Нам нужно найти сам текст команды внутри match
-
         full_match = match.group(0)
         # command_start внутри match
         if trigger in full_match:
              cmd_str = trigger
+        elif ".fixf" in full_match:
+             cmd_str = ".fixf"
         elif ".fix" in full_match:
              cmd_str = ".fix"
         elif ".ff" in full_match:
@@ -65,17 +57,16 @@ async def handle_fix_command(client: Client, chat_id: int, text: str, **kwargs):
         original_text = text[:cmd_start].strip()
         user_instruction = text[cmd_end:].strip()
     else:
-        # Префиксный режим (registry уже убрал команду из начала, если она была в начале)
-        # Либо это просто текст без инфиксной команды
+        # Префиксный режим
         original_text = text.strip()
         user_instruction = ""
 
     logger.info(f"Fixing text (Force={force}). Len: {len(original_text)}. Instr: {user_instruction}")
 
-    # Индикация (только если не Force)
-    if not force:
-        await asyncio.sleep(DRAFT_COOLDOWN)
-        await save_draft(client, chat_id, "🔧 Полирую текст...")
+    # Индикация
+    initial_status = "🚀 Быстрый фикс..." if force else "🔧 Полирую текст..."
+    await asyncio.sleep(DRAFT_COOLDOWN)
+    await save_draft(client, chat_id, initial_status)
 
     user_firstname = await get_user_firstname(client)
     fixer_config = PROMPTS.get('text_fixer', {})
@@ -95,17 +86,17 @@ async def handle_fix_command(client: Client, chat_id: int, text: str, **kwargs):
     if len(response) > 4000:
         if force:
              # Если Force и длинный текст, отправляем чанками в чат
-             # (хотя для .fix это редкость, но на всякий случай)
              logger.warning("Response too long for single message.")
-             # Simple chunking logic handled by caller usually, but here we do it directly
-             # Import split_text logic? We don't have it imported.
-             # Let's just send first 4000 chars and warn?
-             # Or use utils.text_tools.split_text
              from utils.text_tools import split_text
              chunks = split_text(response)
              for i, chunk in enumerate(chunks):
                  await client.send_message(chat_id, chunk, reply_to_message_id=reply_to_id if i==0 else None)
                  await asyncio.sleep(0.5)
+
+             # Фидбек об успехе Force
+             await save_draft(client, chat_id, "✅ Отправлено в чат")
+             await asyncio.sleep(3.0)
+             await save_draft(client, chat_id, "")
         else:
             logger.warning("Response too long, sending to Saved Messages.")
             try:
@@ -122,8 +113,15 @@ async def handle_fix_command(client: Client, chat_id: int, text: str, **kwargs):
             # Force: отправляем сразу в чат
             try:
                 await client.send_message(chat_id, response, reply_to_message_id=reply_to_id)
+                # Фидбек об успехе
+                await save_draft(client, chat_id, "✅ Отправлено в чат")
+                await asyncio.sleep(3.0)
+                await save_draft(client, chat_id, "")
             except Exception as e:
                 logger.error(f"Failed to send force message: {e}")
+                await save_draft(client, chat_id, "❌ Ошибка отправки")
+                await asyncio.sleep(3.0)
+                await save_draft(client, chat_id, "")
         else:
             # Draft: сохраняем в черновик
             await asyncio.sleep(DRAFT_COOLDOWN)
@@ -132,9 +130,12 @@ async def handle_fix_command(client: Client, chat_id: int, text: str, **kwargs):
 async def handle_fix_force(client: Client, chat_id: int, text: str, **kwargs):
     """Обертка для .ff (Force Fix)"""
     kwargs['force'] = True
-    kwargs['trigger'] = '.ff'
+    # trigger передается из main.py, но если вызываем напрямую, то может и не быть.
+    # Если trigger уже есть в kwargs, не трогаем, или ставим дефолт.
+    if 'trigger' not in kwargs:
+         kwargs['trigger'] = '.ff'
     await handle_fix_command(client, chat_id, text, **kwargs)
 
 def register(registry):
     registry.register(['.fix'], handle_fix_command, "Исправление текста")
-    registry.register(['.ff'], handle_fix_force, "Исправление текста (сразу в чат)")
+    registry.register(['.ff', '.fixf'], handle_fix_force, "Исправление текста (сразу в чат)")

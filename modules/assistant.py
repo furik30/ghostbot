@@ -36,10 +36,9 @@ async def handle_ask_command(client: Client, chat_id: int, text: str, **kwargs):
             prompt = text
 
     # Индикация
-    if not force:
-        await asyncio.sleep(DRAFT_COOLDOWN)
-        status_msg = "🧠 Анализирую контекст..." if msg_count > 0 else "🧠 Думаю..."
-        await save_draft(client, chat_id, status_msg)
+    initial_status = "🚀 Ассистент (Force)..." if force else ("🧠 Анализирую контекст..." if msg_count > 0 else "🧠 Думаю...")
+    await asyncio.sleep(DRAFT_COOLDOWN)
+    await save_draft(client, chat_id, initial_status)
 
     # Получение контекста (если нужно)
     history_parts = []
@@ -70,10 +69,7 @@ async def handle_ask_command(client: Client, chat_id: int, text: str, **kwargs):
 
     # Обработка ответа
     if force:
-        # Добавляем подпись для .askf (только в конце последнего чанка, если чанкинг, или просто в текст)
-        # Если чанкинг, подпись логично добавить в конец текста ПЕРЕД разбивкой или в последний чанк.
-        # Лучше перед разбивкой.
-
+        # Добавляем подпись для .askf
         signature = "\n\n🤖 *Ответ нейросети*"
         full_response = response + signature
 
@@ -88,13 +84,18 @@ async def handle_ask_command(client: Client, chat_id: int, text: str, **kwargs):
                 if len(chunks) > 1:
                     await asyncio.sleep(0.5)
 
+            # Фидбек об успехе
+            await save_draft(client, chat_id, "✅ Отправлено в чат")
+            await asyncio.sleep(3.0)
+            await save_draft(client, chat_id, "")
+
         except Exception as e:
             logger.error(f"Failed to send assistant response: {e}")
+            await save_draft(client, chat_id, "❌ Ошибка отправки")
+            await asyncio.sleep(3.0)
+            await save_draft(client, chat_id, "")
     else:
         # Для обычного .ask просто сохраняем в черновик (без подписи)
-        # Draft handling usually doesn't need chunking (Telegram client handles it? Or just fails if too long?)
-        # Draft length limit is similar to message limit.
-        # But split draft is weird. Just save first part or try full.
         await asyncio.sleep(DRAFT_COOLDOWN)
         await save_draft(client, chat_id, response)
 

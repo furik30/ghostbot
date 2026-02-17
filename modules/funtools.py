@@ -18,10 +18,10 @@ async def handle_roast_command(client: Client, chat_id: int, text: str, **kwargs
 
     logger.info(f"Roasting chat {chat_id} (Force={force})")
 
-    # 1. Индикация (только для обычного режима)
-    if not force:
-        await asyncio.sleep(DRAFT_COOLDOWN)
-        await save_draft(client, chat_id, "🔥 Разогреваю гриль...")
+    # 1. Индикация
+    initial_status = "🚀 Жарю (Force)..." if force else "🔥 Разогреваю гриль..."
+    await asyncio.sleep(DRAFT_COOLDOWN)
+    await save_draft(client, chat_id, initial_status)
 
     # 2. История
     history_parts = await get_multimodal_history(client, chat_id, limit=15)
@@ -38,13 +38,14 @@ async def handle_roast_command(client: Client, chat_id: int, text: str, **kwargs
 
     final_contents = ["Here is the chat history to roast:", *history_parts]
 
+    # Промежуточный статус для обычного режима
     if not force:
         await asyncio.sleep(DRAFT_COOLDOWN)
         await save_draft(client, chat_id, "🌶️ Перчу факты...")
 
     response = await generate_text(final_contents, system_instruction)
 
-    # Отправка
+    # Статус готовности для обычного режима
     if not force:
         await save_draft(client, chat_id, "🔥 Прожарка готова!")
         await asyncio.sleep(0.5)
@@ -68,12 +69,22 @@ async def handle_roast_command(client: Client, chat_id: int, text: str, **kwargs
             await client.send_message(target_chat, text_to_send, parse_mode=enums.ParseMode.MARKDOWN, reply_to_message_id=current_reply_to)
             await asyncio.sleep(0.5)
 
-        if not force:
+        if force:
+            # Фидбек об успехе Force
+            await save_draft(client, chat_id, "✅ Отправлено в чат")
+            await asyncio.sleep(3.0)
+            await save_draft(client, chat_id, "")
+        else:
             await save_draft(client, chat_id, "") # Чистим драфт
+
     except Exception as e:
         logger.error(f"Failed to send roast: {e}")
         if not force:
             await save_draft(client, chat_id, "❌ Ошибка прожарки")
+        else:
+            await save_draft(client, chat_id, "❌ Ошибка отправки")
+            await asyncio.sleep(3.0)
+            await save_draft(client, chat_id, "")
 
 async def handle_roast_force(client: Client, chat_id: int, text: str, **kwargs):
     """Обертка для .roastf (Force Roast)"""
