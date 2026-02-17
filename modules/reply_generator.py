@@ -11,15 +11,19 @@ async def handle_reply_command(client: Client, chat_id: int, text: str, **kwargs
     """
     Обработчик для команд .r / .к
     text: остаток строки после команды (аргументы)
-    kwargs: может содержать context_note
+    kwargs: может содержать context_note, force, reply_to_message_id
     """
     args = text.split()
     context_note = kwargs.get("context_note", "")
+    force = kwargs.get("force", False)
+    reply_to_id = kwargs.get("reply_to_message_id")
 
-    logger.info(f"Generating reply for {chat_id} with args: {args}")
+    logger.info(f"Generating reply for {chat_id} (Force={force}) with args: {args}")
     
+    # 1. Индикация (для обоих режимов, но с разным текстом)
+    initial_status = "🚀 Быстрый ответ..." if force else "🧠 Читаю переписку..."
     await asyncio.sleep(DRAFT_COOLDOWN)
-    await save_draft(client, chat_id, "🧠 Читаю переписку...")
+    await save_draft(client, chat_id, initial_status)
     
     msg_count = 5
     level = 2
@@ -61,14 +65,37 @@ async def handle_reply_command(client: Client, chat_id: int, text: str, **kwargs
     final_contents.append(intro_text)
     final_contents.extend(history_parts)
 
-    await asyncio.sleep(DRAFT_COOLDOWN)
-    await save_draft(client, chat_id, "🧠 Думаю...")
+    # Обновляем статус перед генерацией, если не Force (в Force оставляем "Быстрый ответ")
+    if not force:
+        await asyncio.sleep(DRAFT_COOLDOWN)
+        await save_draft(client, chat_id, "🧠 Думаю...")
     
     response = await generate_text(final_contents, system_instruction)
     logger.info("Reply generated successfully")
 
-    await asyncio.sleep(DRAFT_COOLDOWN)
-    await save_draft(client, chat_id, response)
+    if force:
+        # Force: отправляем сразу в чат
+        try:
+            await client.send_message(chat_id, response, reply_to_message_id=reply_to_id)
+            # Фидбек об успехе
+            await save_draft(client, chat_id, "✅ Отправлено в чат")
+            await asyncio.sleep(3.0)
+            await save_draft(client, chat_id, "")
+        except Exception as e:
+            logger.error(f"Failed to send force reply: {e}")
+            await save_draft(client, chat_id, "❌ Ошибка отправки")
+            await asyncio.sleep(3.0)
+            await save_draft(client, chat_id, "")
+    else:
+        # Draft: сохраняем в черновик
+        await asyncio.sleep(DRAFT_COOLDOWN)
+        await save_draft(client, chat_id, response)
+
+async def handle_reply_force(client: Client, chat_id: int, text: str, **kwargs):
+    """Обертка для .rf (Reply Force)"""
+    kwargs['force'] = True
+    await handle_reply_command(client, chat_id, text, **kwargs)
 
 def register(registry):
     registry.register(['.r', '.к'], handle_reply_command, "Генерация ответа")
+    registry.register(['.rf'], handle_reply_force, "Генерация ответа (сразу в чат)")
