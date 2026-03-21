@@ -14,6 +14,9 @@ async def handle_vtt_command(client: Client, chat_id: int, text: str, **kwargs):
     Использование: .vtt [кол-во]
     Пример: .vtt 3 (найдет 3 последних голосовых, как глубоко бы они ни были)
     """
+    force = kwargs.get('force', False)
+    reply_to_id = kwargs.get('reply_to_message_id')
+
     limit = 20 # Максимальная глубина поиска
     max_msgs_to_process = 5 # По дефолту сколько последних ГС обрабатывать
     args = text.split()
@@ -23,8 +26,9 @@ async def handle_vtt_command(client: Client, chat_id: int, text: str, **kwargs):
     logger.info(f"Looking for {max_msgs_to_process} media msgs in {chat_id} (scan depth={limit})")
 
     # 1. Индикация
+    initial_status = f"🚀 Слушаю {max_msgs_to_process} гс (Force)..." if force else f"👂 Слушаю {max_msgs_to_process} гс..."
     await asyncio.sleep(DRAFT_COOLDOWN)
-    await save_draft(client, chat_id, f"👂 Слушаю {max_msgs_to_process} гс...")
+    await save_draft(client, chat_id, initial_status)
 
     # 2. Поиск сообщений с аудио
     msgs_to_process = []
@@ -66,7 +70,8 @@ async def handle_vtt_command(client: Client, chat_id: int, text: str, **kwargs):
     processed_count = 0
     full_transcript = "**📝 Расшифровка голосовых:**\n\n"
 
-    await save_draft(client, chat_id, f"✍️ Расшифровываю ({len(msgs_to_process)} шт)...")
+    status = f"🚀 Расшифровываю ({len(msgs_to_process)} шт)..." if force else f"✍️ Расшифровываю ({len(msgs_to_process)} шт)..."
+    await save_draft(client, chat_id, status)
 
     for msg in msgs_to_process:
         try:
@@ -93,6 +98,10 @@ async def handle_vtt_command(client: Client, chat_id: int, text: str, **kwargs):
             logger.error(f"Failed to transcribe msg {msg.id}: {e}")
             full_transcript += f"**{sender_name}:** [Ошибка: {e}]\n\n"
 
+    if force:
+        signature = "\n\n🤖 *Расшифровка нейросети*"
+        full_transcript += signature
+
     # Отправка
     await save_draft(client, chat_id, "✅ Готово!")
     await asyncio.sleep(0.5)
@@ -104,13 +113,31 @@ async def handle_vtt_command(client: Client, chat_id: int, text: str, **kwargs):
             if len(chunks) > 1 and i > 0:
                 text_to_send = f"...(часть {i+1})\n{chunk}"
 
-            await client.send_message("me", text_to_send, parse_mode=enums.ParseMode.MARKDOWN)
-            await asyncio.sleep(0.5)
+            if force:
+                current_reply_to = reply_to_id if i == 0 else None
+                await client.send_message(chat_id, text_to_send, parse_mode=enums.ParseMode.MARKDOWN, reply_to_message_id=current_reply_to)
+            else:
+                await client.send_message("me", text_to_send, parse_mode=enums.ParseMode.MARKDOWN)
+
+            if len(chunks) > 1:
+                await asyncio.sleep(0.5)
+
+        if force:
+            await asyncio.sleep(3.0)
 
         await save_draft(client, chat_id, "")
     except Exception as e:
         logger.error(f"Failed to send transcript: {e}")
         await save_draft(client, chat_id, "❌ Ошибка отправки")
+        if force:
+            await asyncio.sleep(3.0)
+            await save_draft(client, chat_id, "")
+
+async def handle_vtt_force(client: Client, chat_id: int, text: str, **kwargs):
+    """Обертка для .vttf (Force VTT)"""
+    kwargs['force'] = True
+    await handle_vtt_command(client, chat_id, text, **kwargs)
 
 def register(registry):
     registry.register(['.vtt', '.гс'], handle_vtt_command, "Расшифровка голосовых")
+    registry.register(['.vttf', '.гсf'], handle_vtt_force, "Расшифровка голосовых (сразу в чат)")
