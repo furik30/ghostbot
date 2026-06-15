@@ -1,13 +1,42 @@
-import logging
 import json
 import os
-from pyrogram import Client, raw
+from pyrogram import Client, raw, filters
 from config import API_ID, API_HASH, SESSION_NAME, CONTEXT_FILE
-from modules import reply_generator, prompt_builder, text_fixer, memo, explain, mimicry
+# Импортируем модули. assistant будет добавлен позже, но импорт нужен здесь.
+# Чтобы избежать ошибки ImportError до создания файла, можно использовать try-except или просто добавить, зная что следующий шаг создаст файл.
+# Но лучше я создам файл assistant.py с заглушкой СРАЗУ, чтобы main.py был валидным.
+# Однако, я не могу делать это в рамках одного tool call write_file (только один файл).
+# Поэтому я сначала обновлю main.py, добавив assistant в импорт.
+from modules import reply_generator, prompt_builder, text_fixer, memo, explain, mimicry, funtools, transcriber, registry
+# Note: assistant imported dynamically or added to list if exists?
+# Better to import explicitly.
+try:
+    from modules import assistant
+except ImportError:
+    assistant = None
+
 from utils.logger import setup_logger
+from utils.common import save_draft
 
 logger = setup_logger("GhostBotCore")
 
+# Инициализация реестра команд
+# Импортированные модули:
+modules_list = [
+    reply_generator, prompt_builder, text_fixer,
+    memo, explain, mimicry, funtools, transcriber
+]
+
+if assistant:
+    modules_list.append(assistant)
+
+for mod in modules_list:
+    if hasattr(mod, 'register'):
+        mod.register(registry.registry)
+    else:
+        logger.warning(f"Module {mod.__name__} has no register function.")
+
+# Загрузка контекста
 if os.path.exists(CONTEXT_FILE):
     with open(CONTEXT_FILE, 'r', encoding='utf-8') as f:
         chat_contexts = json.load(f)
@@ -22,6 +51,49 @@ def save_context(data):
 
 app = Client(f"sessions/{SESSION_NAME}", api_id=API_ID, api_hash=API_HASH)
 
+# 1. ОБРАБОТЧИК ИСХОДЯЩИХ СООБЩЕНИЙ (Перехват отправки)
+@app.on_message(filters.me & filters.text)
+async def outgoing_message_handler(client: Client, message):
+    text = message.text
+    if not text:
+        return
+
+    # Проверяем, является ли сообщение командой
+    handler, trigger, args_text = registry.registry.get_handler(text)
+
+    if handler:
+        logger.info(f"Interceptor caught command '{trigger}' in chat {message.chat.id}. Deleting...")
+
+        # Сохраняем ID сообщения, на которое отвечаем (если есть)
+        reply_to_id = message.reply_to_message_id
+
+        try:
+            # 1. Удаляем отправленное сообщение
+            await message.delete()
+        except Exception as e:
+            logger.error(f"Failed to delete message: {e}")
+
+        # 2. Выполняем команду
+        # Аргументы: client, chat_id, text (аргументы), kwargs
+        chat_id = message.chat.id
+        context_note = chat_contexts.get(str(chat_id), "")
+
+        try:
+            await handler(
+                client=client,
+                chat_id=chat_id,
+                text=args_text,
+                context_note=context_note,
+                chat_contexts=chat_contexts,
+                trigger=trigger,
+                reply_to_message_id=reply_to_id
+            )
+        except Exception as e:
+            logger.error(f"Error executing handler for {trigger}: {e}", exc_info=True)
+
+# 2. ОБРАБОТЧИК ЧЕРНОВИКОВ (Drafts) — "Призрачный режим"
+# Позволяет выполнять команды, набрав их в поле ввода, но НЕ отправляя.
+# Бот видит черновик, выполняет команду и очищает поле.
 @app.on_raw_update()
 async def draft_watcher(client: Client, update, users, chats):
     if not isinstance(update, raw.types.UpdateDraftMessage):
@@ -47,45 +119,37 @@ async def draft_watcher(client: Client, update, users, chats):
         if not draft_text:
             return
 
-        if draft_text.startswith(".r ") or draft_text.startswith(".к "):
-            logger.info(f"Command .r detected in {chat_id}")
-            args = draft_text.split()[1:] 
-            context_note = chat_contexts.get(str(chat_id), "")
-            await reply_generator.handle_reply_command(client, chat_id, args, context_note)
+        # Пытаемся достать reply_to_msg_id из черновика
+        # В Pyrogram raw update.draft - это DraftMessage, у него есть поле reply_to_msg_id
+        reply_to_id = getattr(update.draft, 'reply_to_msg_id', None)
 
-        elif draft_text.startswith(".p ") or draft_text.startswith(".prompt "):
-            logger.info(f"Command .p detected in {chat_id}")
-            await prompt_builder.handle_prompt_command(client, chat_id, draft_text)
-
-        elif ".fix" in draft_text:
-            if draft_text.endswith(" .fix") or ".fix " in draft_text:
-                logger.info(f"Command .fix detected in {chat_id}")
-                await text_fixer.handle_fix_command(client, chat_id, draft_text)
-
-        elif draft_text.startswith(".memo "):
-            logger.info(f"Command .memo detected in {chat_id}")
-            await memo.handle_memo_command(client, chat_id, draft_text, chat_contexts)
+        # Ищем обработчик через реестр
+        handler, trigger, args_text = registry.registry.get_handler(draft_text)
         
-        elif draft_text.startswith(".memoshow") or draft_text == ".ms":
-            logger.info(f"Command .memoshow detected in {chat_id}")
-            await memo.handle_memoshow_command(client, chat_id, chat_contexts)
-            
-        elif draft_text.startswith(".mimi"):
-            logger.info(f"Command .mimi detected in {chat_id}")
-            args = draft_text.split()[1:]
-            limit = 100
-            if args:
-                try:
-                    limit = int(args[0])
-                except ValueError:
-                    limit = 100
-            await mimicry.handle_mimicry_command(client, chat_id, chat_contexts, limit)
-            
-        elif draft_text.startswith(".e ") or draft_text.startswith(".explain "):
-            logger.info(f"Command .e detected in {chat_id}")
-            args = draft_text.split()[1:]
+        if handler:
+            logger.info(f"Draft watcher caught command '{trigger}' in chat {chat_id}")
+
+            # Сразу очищаем черновик, чтобы предотвратить случайную отправку
+            # и показать пользователю, что команда принята
+            await save_draft(client, chat_id, "")
+
             context_note = chat_contexts.get(str(chat_id), "")
-            await explain.handle_explain_command(client, chat_id, args, context_note)
+
+            try:
+                # Выполняем
+                await handler(
+                    client=client,
+                    chat_id=chat_id,
+                    text=args_text,
+                    context_note=context_note,
+                    chat_contexts=chat_contexts,
+                    trigger=trigger,
+                    reply_to_message_id=reply_to_id
+                )
+            except Exception as e:
+                logger.error(f"Error executing handler for {trigger} via draft: {e}", exc_info=True)
+                # В случае ошибки можно вернуть текст в драфт или сообщить логом
+                # await save_draft(client, chat_id, f"{draft_text} (Error)")
 
     except Exception as e:
         logger.error(f"Critical error in draft_watcher: {e}", exc_info=True)

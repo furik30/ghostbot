@@ -22,9 +22,9 @@ case "$1" in
         echo -e "${GREEN}Starting...${NC}"
         docker compose up -d
         ;;
-    down)
+    stop)
         echo -e "${RED}Stopping...${NC}"
-        docker compose down
+        docker compose stop
         ;;
     restart)
         echo -e "${YELLOW}Restarting...${NC}"
@@ -42,13 +42,12 @@ case "$1" in
         
         git fetch origin
         git checkout "$TARGET_BRANCH"
-        git pull origin "$TARGET_BRANCH"
+        git reset --hard origin/"$TARGET_BRANCH"
         
         echo -e "${YELLOW}Rebuilding image...${NC}"
-        docker compose build
+        docker compose up -d --build
         
-        echo -e "${GREEN}Restarting...${NC}"
-        docker compose up -d
+        echo -e "${GREEN}Done!${NC}"
         ;;
     status)
         docker compose ps
@@ -63,6 +62,34 @@ case "$1" in
         echo -e "${YELLOW}Interactive Login Mode${NC}"
         docker compose down
         docker compose run --rm -it ghost_bot
+        ;;
+    switch-api)
+        KEY_NUM=$2
+        
+        if [ -z "$KEY_NUM" ]; then
+            echo -e "${RED}Ошибка: Укажите номер ключа (например: ghostbot switch-api 2)${NC}"
+            exit 1
+        fi
+
+        if [ ! -f .env ]; then
+             echo -e "${RED}Ошибка: Файл .env не найден!${NC}"
+             exit 1
+        fi
+
+        NEW_KEY_VAL=$(grep "^GEMINI_API_KEY${KEY_NUM}=" .env | cut -d '=' -f2- | tr -d '"' | tr -d "'")
+
+        if [ -z "$NEW_KEY_VAL" ]; then
+            echo -e "${RED}Ошибка: Ключ GEMINI_API_KEY${KEY_NUM} не найден в .env${NC}"
+            exit 1
+        fi
+
+        echo -e "${YELLOW}Переключаюсь на GEMINI_API_KEY${KEY_NUM}...${NC}"
+
+        sed -i "s|^GEMINI_API_KEY=.*|GEMINI_API_KEY=${NEW_KEY_VAL}|" .env
+
+        echo -e "${GREEN}Ключ успешно обновлен в .env!${NC}"
+        
+        docker compose up -d
         ;;
     help|*)
         echo -e "${GREEN}GhostBot Manager${NC}"

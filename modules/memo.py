@@ -7,8 +7,13 @@ from pyrogram import Client
 
 logger = setup_logger("MemoModule")
 
-async def handle_memo_command(client: Client, chat_id: int, raw_text: str, chat_contexts: dict):
-    note = raw_text[6:].strip()
+async def handle_memo_command(client: Client, chat_id: int, text: str, **kwargs):
+    """
+    Обработчик .memo <текст>
+    """
+    # chat_contexts передается через kwargs
+    chat_contexts = kwargs.get("chat_contexts", {})
+    note = text.strip()
     
     if not note:
         await asyncio.sleep(DRAFT_COOLDOWN)
@@ -34,7 +39,8 @@ async def handle_memo_command(client: Client, chat_id: int, raw_text: str, chat_
     await save_draft(client, chat_id, "") 
 
 
-async def handle_memoshow_command(client: Client, chat_id: int, chat_contexts: dict):
+async def handle_memoshow_command(client: Client, chat_id: int, text: str, **kwargs):
+    chat_contexts = kwargs.get("chat_contexts", {})
     current_note = chat_contexts.get(str(chat_id), "")
     
     if not current_note:
@@ -49,3 +55,7 @@ async def handle_memoshow_command(client: Client, chat_id: int, chat_contexts: d
     
     await asyncio.sleep(DRAFT_COOLDOWN)
     await save_draft(client, chat_id, command_to_show)
+
+def register(registry):
+    registry.register(['.memo'], handle_memo_command, "Сохранить заметку")
+    registry.register(['.memoshow', '.ms'], handle_memoshow_command, "Показать заметку")
