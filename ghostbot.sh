@@ -20,15 +20,15 @@ get_current_branch() {
 case "$1" in
     up)
         echo -e "${GREEN}Starting...${NC}"
-        docker compose up -d --build
+        docker compose up -d
         ;;
-    down)
+    stop)
         echo -e "${RED}Stopping...${NC}"
-        docker compose down
+        docker compose stop
         ;;
     restart)
         echo -e "${YELLOW}Restarting...${NC}"
-        docker compose up -d --build --force-recreate
+        docker compose restart
         ;;
     logs)
         LINES=${2:-100}
@@ -45,10 +45,9 @@ case "$1" in
         git reset --hard origin/"$TARGET_BRANCH"
         
         echo -e "${YELLOW}Rebuilding image...${NC}"
-        docker compose build
+        docker compose up -d --build
         
-        echo -e "${GREEN}Restarting...${NC}"
-        docker compose up -d
+        echo -e "${GREEN}Done!${NC}"
         ;;
     status)
         docker compose ps
@@ -90,7 +89,7 @@ case "$1" in
 
         echo -e "${GREEN}Ключ успешно обновлен в .env!${NC}"
         
-        $0 restart
+        docker compose up -d
         ;;
     help|*)
         echo -e "${GREEN}GhostBot Manager${NC}"
